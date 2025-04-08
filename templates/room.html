@@ -233,5 +233,27 @@
             </div>
             </div>
         </div>
+    <div class="mt-8 bg-white rounded-lg shadow p-4">
+    <h2 class="text-xl font-semibold mb-3">💬 Room Chat</h2>
+
+    <div class="max-h-64 overflow-y-auto space-y-3 mb-4">
+        {% for message in messages %}
+            <div class="p-2 border border-gray-200 rounded {{ 'bg-blue-100' if message.user_id == current_user.id else 'bg-gray-100' }}">
+                <div class="text-sm font-medium text-gray-700">
+                    {{ message.user.username }} <span class="text-xs text-gray-400">({{ message.timestamp.strftime('%b %d, %H:%M') }})</span>
+                </div>
+                <div class="text-gray-800">{{ message.content }}</div>
+            </div>
+        {% endfor %}
+    </div>
+
+    <form action="{{ url_for('send_message', room_id=room.id) }}" method="POST">
+        <input type="text" name="message" placeholder="Type a message..." required
+               class="flex-grow px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400">
+        <button type="submit"
+                class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition">Send</button>
+    </form>
+</div>
+
 </body>
 </html>

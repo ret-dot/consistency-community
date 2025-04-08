@@ -39,6 +39,15 @@ class Reward(db.Model):
     title = db.Column(db.String(150), nullable=False)
     description = db.Column(db.Text, nullable=True)
 
+class ChatMessage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.Integer, db.ForeignKey('room.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User')  # 👈 Add this line
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -52,15 +61,27 @@ def index():
 @app.route('/room/<int:room_id>')
 @login_required
 def room_view(room_id):
-    today = datetime.today()
+    room = Room.query.get_or_404(room_id)
     completions = Completion.query.filter_by(user_id=current_user.id, room_id=room_id).all()
-    completed_days = [c.day.isoformat() for c in completions if c.day.month == today.month and c.day.year == today.year]
-    count = len(completed_days)
+    completed_days = [c.day.isoformat() for c in completions]
+    today = datetime.today()
 
     rewards = Reward.query.filter_by(room_id=room_id).all()
-    unlocked_rewards = [r for r in rewards if count >= r.required_days]
+    messages = ChatMessage.query.filter_by(room_id=room_id).order_by(ChatMessage.timestamp.asc()).all()
 
-    return render_template('room.html', room_id=room_id, completed_days=completed_days, count=count, today=today, rewards=rewards, unlocked_rewards=unlocked_rewards)
+    return render_template('room.html', room=room, completed_days=completed_days,
+                           today=today, rewards=rewards, room_id=room_id,
+                           messages=messages)
+
+@app.route('/send_message/<int:room_id>', methods=['POST'])
+@login_required
+def send_message(room_id):
+    content = request.form.get('message')
+    if content:
+        message = ChatMessage(room_id=room_id, user_id=current_user.id, content=content)
+        db.session.add(message)
+        db.session.commit()
+    return redirect(url_for('room_view', room_id=room_id))
 
 @app.route('/calendar/<int:room_id>/<int:year>/<int:month>')
 @login_required
@@ -131,6 +152,7 @@ def create_room():
     db.session.commit()
 
     return redirect(url_for('index'))
+
 @app.route('/explore')
 @login_required
 def explore_rooms():
@@ -143,6 +165,7 @@ def explore_rooms():
             'members': completion_count
         })
     return render_template('explore.html', rooms=room_data, now=datetime.now())
+
 @app.route('/add_reward/<int:room_id>', methods=['POST'])
 @login_required
 def add_reward(room_id):
