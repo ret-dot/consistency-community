@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Rooms | Consistency Calendar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-indigo-100 to-white min-h-screen text-gray-800">
+    {% extends "base.html" %}
+    {% block content %}
+    <div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-6 text-center">📅 Your Consistency Dashboard</h1>
+
+    {% if room_stats %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for stat in room_stats %}
+        <div class="bg-white shadow-xl rounded-2xl p-6 transition hover:scale-[1.02]">
+        <h2 class="text-xl font-semibold text-indigo-600">{{ stat.room.name }}</h2>
+        <p class="text-gray-700 mt-2">✅ Total Completions: <strong>{{ stat.count }}</strong></p>
+        <p class="text-gray-700">🔥 Current Streak: <strong>{{ stat.streak }}</strong> day{{ stat.streak != 1 and 's' or '' }}</p>
+        <a href="{{ url_for('room_view', room_id=stat.room.id) }}" class="mt-4 inline-block bg-indigo-500 hover:bg-indigo-600 text-white py-2 px-4 rounded-xl">
+            Go to Room
+        </a>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+        <p class="text-center text-gray-500">You’re not part of any rooms yet.</p>
+    {% endif %}
+
+    <div class="mt-10 text-center">
+        <form action="{{ url_for('create_room') }}" method="POST" class="inline-block">
+        <input type="text" name="room_name" placeholder="Create a new room..." required
+                class="border border-gray-300 rounded-xl px-4 py-2 mr-2 focus:outline-none focus:ring focus:border-indigo-300">
+        <button type="submit" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl">
+            ➕ Create Room
+        </button>
+        </form>
+    </div>
+    </div>
+    {% endblock %}
+
+</body>
+</html>

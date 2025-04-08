@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Consistency Calendar</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Optional: Tailwind config for custom colors -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#4f46e5',
+            accent: '#10b981',
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
+
+  <!-- Navbar -->
+  <nav class="bg-white shadow sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+      <a href="{{ url_for('index') }}" class="text-xl font-bold text-primary">Consistency Calendar</a>
+      <div class="flex space-x-4 items-center">
+        {% if current_user.is_authenticated %}
+          <span class="text-sm text-gray-600">Logged in as <strong>{{ current_user.username }}</strong></span>
+          <a href="{{ url_for('logout') }}" class="text-red-500 hover:text-red-700 text-sm">Logout 🔓</a>
+        {% else %}
+          <a href="{{ url_for('login') }}" class="text-primary hover:text-indigo-700 text-sm">Login</a>
+          <a href="{{ url_for('register') }}" class="text-primary hover:text-indigo-700 text-sm">Register</a>
+        {% endif %}
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="flex-1">
+    {% block content %}{% endblock %}
+  </main>
+  <a href="{{ url_for('explore_rooms') }}" class="px-4 py-2 text-blue-500 hover:text-blue-700">🌍 Explore</a>
+  <!-- Footer -->
+  <footer class="bg-white border-t mt-12 py-4 text-center text-sm text-gray-500">
+    &copy; {{ now.year }} Consistency Calendar. All rights reserved.
+  </footer>
+</body>
+</html>
