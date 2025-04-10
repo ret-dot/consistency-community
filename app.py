@@ -39,9 +39,12 @@ class Completion(db.Model):
 class Reward(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     room_id = db.Column(db.Integer, db.ForeignKey('room.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', name='fk_reward_user_id'), nullable=False)  # 👈 Fixed
     required_days = db.Column(db.Integer, nullable=False)
     title = db.Column(db.String(150), nullable=False)
     description = db.Column(db.Text, nullable=True)
+
+    user = db.relationship('User', backref='created_rewards')
 
 
 class ChatMessage(db.Model):
@@ -74,9 +77,8 @@ def room_view(room_id):
     completions = Completion.query.filter_by(user_id=current_user.id, room_id=room_id).all()
     completed_days = [c.day.isoformat() for c in completions]
     today = datetime.today()
-    rewards = Reward.query.filter_by(room_id=room_id).all()
+    rewards = Reward.query.filter_by(room_id=room_id, user_id=current_user.id).all()
     messages = ChatMessage.query.filter_by(room_id=room_id).order_by(ChatMessage.timestamp.asc()).all()
-
     return render_template('room.html', room=room, completed_days=completed_days,
                            today=today, rewards=rewards, room_id=room_id,
                            messages=messages)
@@ -193,10 +195,17 @@ def add_reward(room_id):
     title = request.form['title']
     description = request.form.get('description')
     required_days = int(request.form['required_days'])
-    reward = Reward(room_id=room_id, title=title, description=description, required_days=required_days)
+    reward = Reward(
+        room_id=room_id,
+        user_id=current_user.id,  # NEW
+        title=title,
+        description=description,
+        required_days=required_days
+    )
     db.session.add(reward)
     db.session.commit()
     return redirect(url_for('room_view', room_id=room_id))
+
 
 
 if __name__ == '__main__':
