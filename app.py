@@ -4,6 +4,9 @@ from flask_bcrypt import Bcrypt
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from datetime import date, datetime
 from flask_migrate import Migrate
+from flask_login import login_required
+from flask import flash
+from datetime import datetime
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///calendar.db'
@@ -206,6 +209,34 @@ def add_reward(room_id):
     db.session.commit()
     return redirect(url_for('room_view', room_id=room_id))
 
+@app.route('/profile', methods=['GET'])
+@login_required
+def profile():
+    today = date.today()
+
+    completions = Completion.query.filter_by(user_id=current_user.id).all()
+
+    joined_room_ids = list(set(c.room_id for c in completions))
+    rooms_joined_count = len(joined_room_ids)
+
+    # Total streak days = total number of unique days completed
+    all_days = set(c.day for c in completions)
+    total_streak_days = len(all_days)
+
+    # Current month streak (consistency calendar)
+    current_month_days = [c.day for c in completions if c.day.year == today.year and c.day.month == today.month]
+
+    return render_template('profile.html',
+                           username=current_user.username,
+                           rooms_joined=rooms_joined_count,
+                           total_streak_days=total_streak_days,
+                           current_month_days=[d.isoformat() for d in current_month_days],
+                           today=today)
+
+
+@app.context_processor
+def inject_now():
+    return {'now': datetime.now()}
 
 
 if __name__ == '__main__':
