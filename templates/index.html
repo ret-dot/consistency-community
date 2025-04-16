@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-6 text-center">📅 Your Consistency Dashboard</h1>
+
+    {% if room_stats %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for stat in room_stats %}
+        <div class="bg-white shadow-xl rounded-2xl p-6 transition hover:scale-[1.02]">
+            <h2 class="text-xl font-semibold text-indigo-600">{{ stat.room.name }}</h2>
+            <p class="text-gray-700 mt-2">✅ Total Completions: <strong>{{ stat.count }}</strong></p>
+            <p class="text-gray-700">🔥 Current Streak: <strong>{{ stat.streak }}</strong> day{{ stat.streak != 1 and 's' or '' }}</p>
+            <a href="{{ url_for('room_view', room_id=stat.room.id) }}" class="mt-4 inline-block bg-indigo-500 hover:bg-indigo-600 text-white py-2 px-4 rounded-xl">
+                Go to Room
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+        <p class="text-center text-gray-500">"Be positive. And stay true to yourself."</p>
+        <p class="text-center text-gray-500">"Please share the site URL and your rooms so more people can become consistent."</p>
+    {% endif %}
+
+    <!-- Room Creation Form -->
+    <div class="mt-10 max-w-md mx-auto bg-white p-6 rounded-xl shadow-lg">
+        <form method="POST" action="{{ url_for('create_room') }}">
+            <div class="mb-4">
+                <label for="name" class="block font-semibold text-gray-700 mb-2">Room Name</label>
+                <input type="text" name="name" id="name" placeholder="Enter room name" required class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400">
+            </div>
+
+            <div class="mb-4 flex items-center">
+                <input type="checkbox" id="is_private" name="is_private" class="mr-2">
+                <label for="is_private" class="text-gray-700">Make this room private</label>
+            </div>
+            <label for="rules">Room Rules (optional):</label>
+            <textarea name="rules" id="rules" class="form-control" rows="4"></textarea>
+            <div class="mb-4">
+                <label for="password" class="block font-semibold text-gray-700 mb-2">Room Password (Only for private rooms):</label>
+                <input type="password" name="password" id="password" placeholder="Enter password" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400">
+            </div>
+
+            <button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition">Create Room</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

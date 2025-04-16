@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Consistency Calendar</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#4f46e5',
+            accent: '#10b981',
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-12XRNT7SBV"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-12XRNT7SBV');
+  </script>
+</head>
+
+<body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
+
+  <!-- Navbar -->
+  <nav class="bg-white shadow sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+      <a href="{{ url_for('index') }}" class="text-xl font-bold text-primary">Consistency Calendar</a>
+      <div class="flex items-center space-x-4 text-sm">
+        {% if current_user.is_authenticated %}
+          <span class="text-gray-600">👋 <strong>{{ current_user.username }}</strong></span>
+          <a href="{{ url_for('profile') }}" class="text-gray-600 hover:text-primary">Profile</a>
+          <a href="{{ url_for('explore_rooms') }}" class="text-blue-600 hover:text-blue-800">Explore</a>
+          <a href="{{ url_for('friends_dashboard') }}" class="text-green-600 hover:text-green-800">Friends</a>
+          <a href="{{ url_for('friend_requests') }}" class="text-yellow-600 hover:text-yellow-800">Requests</a>
+          <a href="{{ url_for('logout') }}" class="text-red-500 hover:text-red-700">Logout 🔓</a>
+        {% else %}
+          <a href="{{ url_for('login') }}" class="text-primary hover:text-indigo-700">Login</a>
+          <a href="{{ url_for('register') }}" class="text-primary hover:text-indigo-700">Register</a>
+        {% endif %}
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="flex-1 px-4 py-6">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t py-4 text-center text-sm text-gray-500">
+    &copy; {{ now.year }} Consistency Calendar. All rights reserved.
+  </footer>
+
+</body>
+</html>

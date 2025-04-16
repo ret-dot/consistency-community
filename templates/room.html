@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Room {{room_id}} Consistency Calendar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 1rem;
+            background: #944646;
+        }
+        h1, h2 {
+            text-align: center;
+        }
+        .calendar {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
+            max-width: 600px;
+            margin: 1rem auto;
+        }
+        .day {
+            padding: 10px;
+            background: rgb(15, 223, 175);
+            border: 1px solid #18d828;
+            text-align: center;
+            cursor: pointer;
+            border-radius: 8px;
+        }
+        .completed {
+            background: #4caf50;
+            color: rgb(20, 18, 170);
+            font-weight: bold;
+        }
+        .nav {
+            display: flex;
+            justify-content: space-between;
+            max-width: 600px;
+            margin: auto;
+        }
+        .stats {
+            text-align: center;
+            margin-top: 1rem;
+        }
+        button {
+            padding: 0.5rem 1rem;
+            background: #007bff;
+            border: none;
+            color: rgb(227, 229, 133);
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-r from-indigo-100 to-white min-h-screen p-6 text-gray-800">
+    <h1>Room #{{ room_id }} – {{ today.strftime('%B %Y') }}</h1>
+    <div class="container">
+        <h2 class="text-2xl font-bold mb-4">{{ room.name }} Room</h2>
+
+        <!-- Show room rules if they exist -->
+        {% if room.rules %}
+            <div class="alert alert-info">
+                <h3>Room Rules</h3>
+                <p>{{ room.rules }}</p>
+            </div>
+        {% endif %}
+
+        
+    </div>
+
+    <div class="flex justify-center items-center gap-4 my-4">
+      <button id="prevMonth" class="bg-gray-300 hover:bg-gray-400 px-3 py-1 rounded">−</button>
+      <span id="monthLabel" class="text-lg font-semibold"></span>
+      <button id="nextMonth" class="bg-gray-300 hover:bg-gray-400 px-3 py-1 rounded">+</button>
+    </div>
+    <script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const calendarEl = document.getElementById("calendar");
+        const monthLabel = document.getElementById("monthLabel");
+        const completed = new Set({{ completed_days | tojson | safe }});
+
+        let currentMonth = {{ today.month - 1 }}; // 0-indexed
+        let currentYear = {{ today.year }};
+
+        function updateMonthLabel() {
+            const monthNames = [
+                "January", "February", "March", "April", "May", "June",
+                "July", "August", "September", "October", "November", "December"
+            ];
+            monthLabel.textContent = `${monthNames[currentMonth]} ${currentYear}`;
+        }
+
+        function generateCalendar(year, month) {
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const totalDays = lastDay.getDate();
+            const startDay = firstDay.getDay();
+
+            calendarEl.innerHTML = "";
+
+            for (let i = 0; i < startDay; i++) {
+                const empty = document.createElement("div");
+                calendarEl.appendChild(empty);
+            }
+
+            for (let d = 1; d <= totalDays; d++) {
+                const day = new Date(year, month, d);
+                const iso = day.toISOString().split('T')[0];
+
+                const div = document.createElement("div");
+                div.classList.add("day");
+                div.innerText = d;
+
+                if (completed.has(iso)) {
+                    div.classList.add("completed");
+                }
+
+                div.onclick = () => {
+                    fetch("/toggle_day", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            day: iso,
+                            room_id: {{ room_id }}
+                        })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.status === "added") {
+                            div.classList.add("completed");
+                            completed.add(iso);
+                        } else {
+                            div.classList.remove("completed");
+                            completed.delete(iso);
+                        }
+                        updateStats();
+                    });
+                };
+
+                calendarEl.appendChild(div);
+            }
+
+            updateMonthLabel();
+            updateStats();
+        }
+
+        function updateStats() {
+            const completedArray = [...completed].sort();
+            let streak = 0;
+            let maxStreak = 0;
+            let prev = null;
+
+            for (let iso of completedArray) {
+                const dateObj = new Date(iso);
+                if (prev) {
+                    const diff = (dateObj - prev) / (1000 * 60 * 60 * 24);
+                    if (diff === 1) {
+                        streak++;
+                    } else {
+                        streak = 1;
+                    }
+                } else {
+                    streak = 1;
+                }
+                maxStreak = Math.max(maxStreak, streak);
+                prev = dateObj;
+            }
+
+            document.getElementById("count").innerText = completed.size;
+            document.getElementById("streak").innerText = maxStreak;
+        }
+
+        document.getElementById("prevMonth").onclick = () => {
+            currentMonth--;
+            if (currentMonth < 0) {
+                currentMonth = 11;
+                currentYear--;
+            }
+            generateCalendar(currentYear, currentMonth);
+        };
+
+        document.getElementById("nextMonth").onclick = () => {
+            currentMonth++;
+            if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+            }
+            generateCalendar(currentYear, currentMonth);
+        };
+
+        generateCalendar(currentYear, currentMonth);
+    });
+    </script>
+
+
+    <div class="calendar" id="calendar"></div>
+
+    <div class="stats">
+        <p>Total completed days: <strong id="count">{{ count }}</strong></p>
+        <p>Current streak: <strong id="streak">0</strong></p>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+          const today = new Date("{{ today.strftime('%Y-%m-%d') }}");
+          const currentMonth = today.getMonth();
+          const currentYear = today.getFullYear();
+          const completed = new Set({{ completed_days | tojson | safe }});
+          const calendarEl = document.getElementById("calendar");
+
+          function generateCalendar(year, month) {
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const totalDays = lastDay.getDate();
+            const startDay = firstDay.getDay();
+
+            calendarEl.innerHTML = "";
+
+            for (let i = 0; i < startDay; i++) {
+              const empty = document.createElement("div");
+              calendarEl.appendChild(empty);
+            }
+
+            for (let d = 1; d <= totalDays; d++) {
+              const day = new Date(year, month, d);
+              const iso = day.toISOString().split('T')[0];
+
+              const div = document.createElement("div");
+              div.classList.add("text-center", "p-2", "rounded", "cursor-pointer", "transition");
+              div.innerText = d;
+
+              if (completed.has(iso)) {
+                div.classList.add("bg-green-300", "hover:bg-green-400");
+              } else {
+                div.classList.add("bg-gray-100", "hover:bg-indigo-200");
+              }
+
+              div.onclick = () => {
+                fetch("/toggle_day", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json"
+                  },
+                  body: JSON.stringify({
+                    day: iso,
+                    room_id: {{ room_id }}
+                  })
+                })
+                .then(res => res.json())
+                .then(data => {
+                  if (data.status === "added") {
+                    div.classList.remove("bg-gray-100", "hover:bg-indigo-200");
+                    div.classList.add("bg-green-300", "hover:bg-green-400");
+                    completed.add(iso);
+                  } else {
+                    div.classList.remove("bg-green-300", "hover:bg-green-400");
+                    div.classList.add("bg-gray-100", "hover:bg-indigo-200");
+                    completed.delete(iso);
+                  }
+                  updateStats();
+                });
+              };
+
+              calendarEl.appendChild(div);
+            }
+            updateStats();
+          }
+
+          function updateStats() {
+            const completedArray = [...completed].sort();
+            let streak = 0;
+            let maxStreak = 0;
+            let prev = null;
+
+            for (let iso of completedArray) {
+              const dateObj = new Date(iso);
+              if (prev) {
+                const diff = (dateObj - prev) / (1000 * 60 * 60 * 24);
+                if (diff === 1) {
+                  streak++;
+                } else {
+                  streak = 1;
+                }
+              } else {
+                streak = 1;
+              }
+              maxStreak = Math.max(maxStreak, streak);
+              prev = dateObj;
+            }
+
+            document.getElementById("count").innerText = completed.size;
+            document.getElementById("streak").innerText = maxStreak;
+          }
+
+          generateCalendar(currentYear, currentMonth);
+        });
+    </script>
+
+    <!-- Add Reward Form -->
+    <div class="bg-white rounded-xl p-6 shadow mb-10">
+        <h2 class="text-2xl font-semibold mb-4">🎁 Add a Reward</h2>
+        <form action="{{ url_for('add_reward', room_id=room_id) }}" method="POST" class="space-y-4">
+            <input name="title" type="text" placeholder="Reward Title" required
+                class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-400">
+            <textarea name="description" placeholder="Reward Description (optional)"
+                    class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-400"></textarea>
+            <input name="required_days" type="number" placeholder="Required Days" min="1" required
+                class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-400">
+            <button type="submit"
+                    class="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 transition">
+            ➕ Add Reward
+            </button>
+        </form>
+    </div>
+
+    <!-- Reward List -->
+    <div>
+        <h2 class="text-2xl font-bold mb-4 text-center">🎖️ Your Rewards</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {% for reward in rewards %}
+            {% set unlocked = reward in unlocked_rewards %}
+            <div class="transition-all duration-300 rounded-lg p-4 shadow border
+                        {% if unlocked %} border-green-400 bg-green-50 {% else %} border-gray-300 bg-gray-100 opacity-70 {% endif %}">
+                <h3 class="text-xl font-semibold text-indigo-700">
+                {% if unlocked %} 🔓 {% else %} 🔒 {% endif %} {{ reward.title }}
+                </h3>
+                <p class="text-sm text-gray-600">{{ reward.description }}</p>
+                <p class="text-xs mt-2 text-gray-500">Requires: {{ reward.required_days }} days</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Room Chat -->
+    <div class="mt-8 bg-white rounded-lg shadow p-4">
+        <h2 class="text-xl font-semibold mb-3">💬 Room Chat</h2>
+
+        <div class="max-h-64 overflow-y-auto space-y-3 mb-4">
+            {% for message in messages %}
+                <div class="p-2 border border-gray-200 rounded {{ 'bg-blue-100' if message.user_id == current_user.id else 'bg-gray-100' }}">
+                    <div class="text-sm font-medium text-gray-700">
+                        {{ message.user.username }} <span class="text-xs text-gray-400">({{ message.timestamp.strftime('%b %d, %H:%M') }})</span>
+                    </div>
+                    <div class="text-gray-800">{{ message.content }}</div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <form action="{{ url_for('send_message', room_id=room.id) }}" method="POST" class="flex gap-2">
+            <input type="text" name="message" placeholder="Type a message..." required
+                   class="flex-grow px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400">
+            <button type="submit"
+                    class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition">Send</button>
+        </form>
+    </div>
+
+</body>
+</html>
