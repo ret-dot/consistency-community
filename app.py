@@ -13,6 +13,8 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///calendar.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'supersecretkey'
 
+app.general_room_initialized = False
+
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 bcrypt = Bcrypt(app)
@@ -403,22 +405,36 @@ def chat(friend_id):
     ).order_by(PrivateChatMessage.timestamp.asc()).all()
     friend = User.query.get(friend_id)
     return render_template('private_chat.html', friend=friend, messages=messages)
-@app.route('/friends')
+
+@app.route('/friends', methods=['GET', 'POST'])
 @login_required
 def friends_dashboard():
+    search_query = request.args.get('search', '')
+
+    # Get list of current friends
     accepted_sent = FriendRequest.query.filter_by(sender_id=current_user.id, status='accepted').all()
     accepted_received = FriendRequest.query.filter_by(receiver_id=current_user.id, status='accepted').all()
 
-    friends = set()
+    friend_ids = set()
     for fr in accepted_sent:
-        friends.add(User.query.get(fr.receiver_id))
+        friend_ids.add(fr.receiver_id)
     for fr in accepted_received:
-        friends.add(User.query.get(fr.sender_id))
+        friend_ids.add(fr.sender_id)
 
-    return render_template('friends_dashboard.html', friends=list(friends))
+    friends = User.query.filter(User.id.in_(friend_ids)).all()
 
-# Use a flag to ensure one-time initialization
-app.general_room_initialized = False
+    # Exclude self, existing friends, and pending requests from search
+    pending_sent = FriendRequest.query.filter_by(sender_id=current_user.id, status='pending').all()
+    pending_received = FriendRequest.query.filter_by(receiver_id=current_user.id, status='pending').all()
+    pending_ids = {fr.receiver_id for fr in pending_sent} | {fr.sender_id for fr in pending_received}
+    excluded_ids = friend_ids | pending_ids | {current_user.id}
+
+    # Perform search if query is entered
+    users = []
+    if search_query:
+        users = User.query.filter(User.username.contains(search_query), ~User.id.in_(excluded_ids)).all()
+
+    return render_template('friends_dashboard.html', friends=friends, users=users, search_query=search_query)
 
 @app.before_request
 def create_general_room():

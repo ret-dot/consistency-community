@@ -1,19 +1,36 @@
-<!-- templates/friends_dashboard.html -->
 {% extends "base.html" %}
 {% block content %}
-<div class="container mt-4">
-  <h2>Your Friends</h2>
-  {% if friends %}
-    <ul class="list-group">
-      {% for friend in friends %}
-        <li class="list-group-item d-flex justify-content-between align-items-center">
-          {{ friend.username }}
-          <a href="{{ url_for('chat', friend_id=friend.id) }}" class="btn btn-sm btn-outline-primary">Chat</a>
+<div class="max-w-2xl mx-auto mt-10 bg-white p-6 rounded-lg shadow">
+  <h2 class="text-xl font-bold mb-4">Search for Friends</h2>
+  <form method="GET" action="{{ url_for('friends_dashboard') }}" class="flex mb-4">
+    <input type="text" name="search" placeholder="Search username..." value="{{ search_query }}"
+           class="border border-gray-300 rounded-l px-4 py-2 w-full">
+    <button type="submit" class="bg-primary text-white px-4 rounded-r">Search</button>
+  </form>
+
+  {% if users %}
+    <h3 class="font-semibold mb-2">Users Found:</h3>
+    <ul>
+      {% for user in users %}
+        <li class="flex justify-between items-center border-b py-2">
+          {{ user.username }}
+          <form method="POST" action="{{ url_for('send_friend_request', user_id=user.id) }}">
+            <button type="submit" class="text-sm text-white bg-accent px-3 py-1 rounded">Send Request</button>
+          </form>
         </li>
       {% endfor %}
     </ul>
-  {% else %}
-    <p>You have no friends yet. Send some requests!</p>
+  {% elif search_query %}
+    <p>No users found for "{{ search_query }}".</p>
   {% endif %}
+
+  <h3 class="mt-8 font-semibold">Your Friends</h3>
+  <ul>
+    {% for friend in friends %}
+      <li class="border-b py-2">{{ friend.username }}</li>
+    {% else %}
+      <li>No friends yet.</li>
+    {% endfor %}
+  </ul>
 </div>
 {% endblock %}
