@@ -7,7 +7,7 @@
 - Accountability rooms
 - Visual stats and streak history
 - Private or public rooms
-- Friend system & chat (coming soon!)
+- Friend system & chat (completed)
 
 📅 Whether you're a student, builder, or just trying to show up every day — this is for you.
 
