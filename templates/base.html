@@ -43,8 +43,10 @@
           <a href="{{ url_for('explore_rooms') }}" class="text-blue-600 hover:text-blue-800">Explore</a>
           <a href="{{ url_for('friends_dashboard') }}" class="text-green-600 hover:text-green-800">Friends</a>
           <a href="{{ url_for('friend_requests') }}" class="text-yellow-600 hover:text-yellow-800">Requests</a>
+          <a href="{{ url_for('blog_create') }}" class="text-yellow-600 hover:text-yellow-800">Create diary</a>
+          <a href="{{ url_for('blog_list') }}" class="text-yellow-600 hover:text-yellow-800">Diary</a>
           <a href="{{ url_for('logout') }}" class="text-red-500 hover:text-red-700">Logout 🔓</a>
-        {% else %}
+          {% else %}
           <a href="{{ url_for('login') }}" class="text-primary hover:text-indigo-700">Login</a>
           <a href="{{ url_for('register') }}" class="text-primary hover:text-indigo-700">Register</a>
         {% endif %}

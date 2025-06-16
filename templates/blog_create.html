@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>New Daily Diary Post</h2>
+<form method="post">
+  <div class="mb-3">
+    <label for="title" class="form-label">Title</label>
+    <input type="text" class="form-control" name="title" required>
+  </div>
+  <div class="mb-3">
+    <label for="content" class="form-label">Content</label>
+    <textarea class="form-control" name="content" rows="6" required></textarea>
+  </div>
+  <button type="submit" class="btn btn-success">Publish</button>
+</form>
+{% endblock %}

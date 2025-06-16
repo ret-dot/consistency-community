@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, request, jsonify, redirect, url_for,session
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
@@ -8,7 +8,13 @@ from flask_login import login_required
 from flask import flash
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask_socketio import SocketIO, emit, join_room
+import eventlet
+import eventlet.wsgi
+import os
+
 app = Flask(__name__)
+socketio = SocketIO(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///calendar.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'supersecretkey'
@@ -33,11 +39,13 @@ class Room(db.Model):
     name = db.Column(db.String(150), nullable=False)
     is_private = db.Column(db.Boolean, default=False)  # NEW
     rules = db.Column(db.Text, nullable=True)  # Optional, for room rules later
-    password_hash = db.Column(db.String(256))
+    password_hash = db.Column(db.String(255))
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
+        if not self.password_hash:
+            return False
         return check_password_hash(self.password_hash, password)
 
 
@@ -85,10 +93,17 @@ class PrivateChatMessage(db.Model):
     content = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
+class BlogPost(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    author_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    author = db.relationship('User', backref='blog_posts')
 
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    return db.session.get(User, int(user_id))
 
 
 # ROUTES
@@ -125,30 +140,23 @@ def room_view(room_id):
     room = Room.query.get_or_404(room_id)
     completions = Completion.query.filter_by(user_id=current_user.id).all()
     days = set(c.day for c in completions)
-
-    # Restrict access for non-General rooms if user doesn't have 2-day consistency
-    if room.name != "General" and len(days) < 2:
-        flash("You need 2 days of consistency to join this room.", "danger")
-        return redirect(url_for('index'))
-
-    # Handle private room password check
+    if request.method == 'GET' and room.rules:
+        flash(f"Room Rules: {room.rules}", "info")
     if room.is_private:
-        if request.method == 'POST':
-            input_password = request.form.get("room_password")
-            if not room.check_password(input_password):
-                flash("Incorrect password.", "danger")
-                return redirect(url_for('explore_rooms'))
+        # Check if user already authenticated for this room
+        if f'room_{room.id}_auth' not in session:
+            if request.method == 'POST':
+                input_password = request.form.get("password")
+                if not room.password_hash or not room.check_password(input_password):
+                    flash("Incorrect password.", "danger")
+                    return render_template('room_password.html', error="Incorrect password.")
+                session[f'room_{room.id}_auth'] = True
+            else:
+                return render_template('room_password.html', error=None)
 
     # Show rules on GET request
     if request.method == 'GET' and room.rules:
         flash(f"Room Rules: {room.rules}", "info")
-
-    # Check room-specific consistency for non-General rooms
-    if room.name != "General":
-        completion_count = Completion.query.filter_by(user_id=current_user.id, room_id=room.id).count()
-        if completion_count < 2:
-            flash('You must have at least 2-day consistency in this room to enter.', 'danger')
-            return redirect(url_for('index'))
 
     user_completions = [c for c in completions if c.room_id == room.id]
     completed_days = [c.day.isoformat() for c in user_completions]
@@ -164,17 +172,26 @@ def room_view(room_id):
                            room_id=room.id,
                            messages=messages)
 
-
-
-@app.route('/send_message/<int:room_id>', methods=['POST'])
+@socketio.on('join_room_chat')
 @login_required
-def send_message(room_id):
-    content = request.form.get('message')
-    if content:
-        message = ChatMessage(room_id=room_id, user_id=current_user.id, content=content)
-        db.session.add(message)
-        db.session.commit()
-    return redirect(url_for('room_view', room_id=room_id))
+def handle_join_room_chat(data):
+    room_id = data['room_id']
+    join_room(f'room_{room_id}')
+
+@socketio.on('send_room_message')
+@login_required
+def handle_send_room_message(data):
+    room_id = data['room_id']
+    content = data['message']
+    # Save to DB
+    message = ChatMessage(room_id=room_id, user_id=current_user.id, content=content)
+    db.session.add(message)
+    db.session.commit()
+    emit('receive_room_message', {
+        'username': current_user.username,
+        'message': content,
+        'timestamp': message.timestamp.strftime('%Y-%m-%d %H:%M')
+    }, room=f'room_{room_id}')
 
 
 @app.route('/calendar/<int:room_id>/<int:year>/<int:month>')
@@ -269,20 +286,20 @@ def create_room():
         is_private = 'is_private' in request.form  # checkbox
         password = request.form.get('password')
         rules = request.form.get('rules')
-        room = Room(name=name, is_private=is_private)
+        room = Room(name=name, is_private=is_private,rules=rules)
 
         if is_private and password:
-            room.password = generate_password_hash(password)
+            room.password_hash = generate_password_hash(password)
 
         db.session.add(room)
         db.session.commit()
         flash('Room created successfully!', 'success')
+        
+        today = date.today()
+        completion = Completion(user_id=current_user.id, room_id=room.id, day=today)
+        db.session.add(completion)
+        db.session.commit()
         return redirect(url_for('explore_rooms'))
-    today = date.today()
-    completion = Completion(user_id=current_user.id, room_id=room.id, day=today)
-    db.session.add(completion)
-    db.session.commit()
-
     return redirect(url_for('index'))
     return render_template('create_room.html')
 
@@ -292,7 +309,8 @@ def explore_rooms():
     rooms = Room.query.all()
     room_data = []
     for room in rooms:
-        completion_count = Completion.query.filter_by(room_id=room.id).distinct(Completion.user_id).count()
+        # Count unique users for this room
+        completion_count = db.session.query(Completion.user_id).filter_by(room_id=room.id).distinct().count()
         room_data.append({
             'room': room,
             'members': completion_count
@@ -340,8 +358,8 @@ def profile():
                            total_streak_days=total_streak_days,
                            current_month_days=[d.isoformat() for d in current_month_days],
                            today=today)
-
-@app.route('/send_friend_request/<int:user_id>')
+                               
+@app.route('/send_friend_request/<int:user_id>', methods=['GET', 'POST'])
 @login_required
 def send_friend_request(user_id):
     if user_id == current_user.id:
@@ -390,21 +408,27 @@ def reject_friend(request_id):
     return redirect(url_for('friend_requests'))
 
 
-@app.route('/chat/<int:friend_id>', methods=['GET', 'POST'])
+@socketio.on('join_private')
 @login_required
-def chat(friend_id):
-    if request.method == 'POST':
-        content = request.form.get('message')
-        if content:
-            msg = PrivateChatMessage(sender_id=current_user.id, receiver_id=friend_id, content=content)
-            db.session.add(msg)
-            db.session.commit()
-    messages = PrivateChatMessage.query.filter(
-        ((PrivateChatMessage.sender_id == current_user.id) & (PrivateChatMessage.receiver_id == friend_id)) |
-        ((PrivateChatMessage.sender_id == friend_id) & (PrivateChatMessage.receiver_id == current_user.id))
-    ).order_by(PrivateChatMessage.timestamp.asc()).all()
-    friend = User.query.get(friend_id)
-    return render_template('private_chat.html', friend=friend, messages=messages)
+def handle_join_private(data):
+    friend_id = data['friend_id']
+    room_name = f'private_{min(current_user.id, friend_id)}_{max(current_user.id, friend_id)}'
+    join_room(room_name)
+
+@socketio.on('send_private_message')
+@login_required
+def handle_send_private_message(data):
+    friend_id = data['friend_id']
+    content = data['message']
+    msg = PrivateChatMessage(sender_id=current_user.id, receiver_id=friend_id, content=content)
+    db.session.add(msg)
+    db.session.commit()
+    room_name = f'private_{min(current_user.id, friend_id)}_{max(current_user.id, friend_id)}'
+    emit('receive_private_message', {
+        'username': current_user.username,
+        'message': content,
+        'timestamp': msg.timestamp.strftime('%Y-%m-%d %H:%M')
+    }, room=room_name)
 
 @app.route('/friends', methods=['GET', 'POST'])
 @login_required
@@ -451,6 +475,55 @@ def create_general_room():
 def inject_now():
     return {'now': datetime.now()}
 
+@app.route('/private_chat/<int:friend_id>')
+@login_required
+def private_chat(friend_id):
+    friend = User.query.get_or_404(friend_id)
+    messages = PrivateChatMessage.query.filter(
+        ((PrivateChatMessage.sender_id == current_user.id) & (PrivateChatMessage.receiver_id == friend_id)) |
+        ((PrivateChatMessage.sender_id == friend_id) & (PrivateChatMessage.receiver_id == current_user.id))
+    ).order_by(PrivateChatMessage.timestamp.asc()).all()
+    return render_template('private_chat.html', friend=friend, messages=messages)
+
+def get_friends(user_id):
+    sent = FriendRequest.query.filter_by(sender_id=user_id, status='accepted').all()
+    received = FriendRequest.query.filter_by(receiver_id=user_id, status='accepted').all()
+    friend_ids = [fr.receiver_id for fr in sent] + [fr.sender_id for fr in received]
+    return User.query.filter(User.id.in_(friend_ids)).all()
+
+@app.route('/blog')
+@login_required
+def blog_list():
+    # Show only blogs by friends (and self)
+    friends = get_friends(current_user.id)
+    friend_ids = [f.id for f in friends] + [current_user.id]
+    posts = BlogPost.query.filter(BlogPost.author_id.in_(friend_ids)).order_by(BlogPost.timestamp.desc()).all()
+    return render_template('blog_list.html', posts=posts)
+
+@app.route('/blog/new', methods=['GET', 'POST'])
+@login_required
+def blog_create():
+    if request.method == 'POST':
+        title = request.form['title']
+        content = request.form['content']
+        post = BlogPost(author_id=current_user.id, title=title, content=content)
+        db.session.add(post)
+        db.session.commit()
+        flash('Blog post created!', 'success')
+        return redirect(url_for('blog_list'))
+    return render_template('blog_create.html')
+
+@app.route('/blog/<int:post_id>')
+@login_required
+def blog_detail(post_id):
+    post = BlogPost.query.get_or_404(post_id)
+    # Only allow friends or self to view
+    if post.author_id != current_user.id:
+        friends = get_friends(current_user.id)
+        if post.author_id not in [f.id for f in friends]:
+            flash("You are not allowed to view this blog post.", "danger")
+            return redirect(url_for('blog_list'))
+    return render_template('blog_detail.html', post=post)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    socketio.run(app, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))

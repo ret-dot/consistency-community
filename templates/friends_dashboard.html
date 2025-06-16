@@ -27,7 +27,9 @@
   <h3 class="mt-8 font-semibold">Your Friends</h3>
   <ul>
     {% for friend in friends %}
-      <li class="border-b py-2">{{ friend.username }}</li>
+      <li>
+        <a href="{{ url_for('private_chat', friend_id=friend.id) }}">{{ friend.username }}</a>
+      </li>
     {% else %}
       <li>No friends yet.</li>
     {% endfor %}

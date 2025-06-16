@@ -71,7 +71,6 @@
 
         
     </div>
-
     <div class="flex justify-center items-center gap-4 my-4">
       <button id="prevMonth" class="bg-gray-300 hover:bg-gray-400 px-3 py-1 rounded">−</button>
       <span id="monthLabel" class="text-lg font-semibold"></span>
@@ -339,24 +338,42 @@
     <div class="mt-8 bg-white rounded-lg shadow p-4">
         <h2 class="text-xl font-semibold mb-3">💬 Room Chat</h2>
 
-        <div class="max-h-64 overflow-y-auto space-y-3 mb-4">
+        <div class="max-h-64 overflow-y-auto space-y-3 mb-4" id="chat-box" style="height:300px;overflow-y:auto;">
             {% for message in messages %}
-                <div class="p-2 border border-gray-200 rounded {{ 'bg-blue-100' if message.user_id == current_user.id else 'bg-gray-100' }}">
-                    <div class="text-sm font-medium text-gray-700">
-                        {{ message.user.username }} <span class="text-xs text-gray-400">({{ message.timestamp.strftime('%b %d, %H:%M') }})</span>
-                    </div>
-                    <div class="text-gray-800">{{ message.content }}</div>
-                </div>
+                <div><b>{{ message.user.username }}</b>: {{ message.content }} <span style="font-size:smaller;color:gray;">{{ message.timestamp.strftime('%Y-%m-%d %H:%M') }}</span></div>
             {% endfor %}
         </div>
 
-        <form action="{{ url_for('send_message', room_id=room.id) }}" method="POST" class="flex gap-2">
-            <input type="text" name="message" placeholder="Type a message..." required
+        <form id="chat-form" class="flex gap-2">
+            <input id="chat-input" type="text" name="message" placeholder="Type a message..." required
                    class="flex-grow px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400">
             <button type="submit"
                     class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition">Send</button>
         </form>
     </div>
+
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script>
+        var socket = io();
+        var room_id = {{ room.id }};
+        socket.emit('join_room_chat', {room_id: room_id});
+
+        document.getElementById('chat-form').onsubmit = function(e) {
+            e.preventDefault();
+            var msg = document.getElementById('chat-input').value;
+            if(msg.trim() === "") return;
+            socket.emit('send_room_message', {room_id: room_id, message: msg});
+            document.getElementById('chat-input').value = '';
+        };
+
+        socket.on('receive_room_message', function(data) {
+            var chatBox = document.getElementById('chat-box');
+            var msgDiv = document.createElement('div');
+            msgDiv.innerHTML = `<b>${data.username}</b>: ${data.message} <span style="font-size:smaller;color:gray;">${data.timestamp}</span>`;
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        });
+    </script>
 
 </body>
 </html>

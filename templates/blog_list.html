@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Daily Diary</h2>
+<a href="{{ url_for('blog_create') }}" class="btn btn-primary mb-3">New Post</a>
+<ul class="list-group">
+  {% for post in posts %}
+    <li class="list-group-item">
+      <a href="{{ url_for('blog_detail', post_id=post.id) }}">{{ post.title }}</a>
+      <small class="text-muted">by {{ post.author.username }} on {{ post.timestamp.strftime('%Y-%m-%d %H:%M') }}</small>
+    </li>
+  {% endfor %}
+</ul>
+{% endblock %}
