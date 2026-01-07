@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Focus Session</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@magenta/music@1.23.1/dist/magentamusic.min.js"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .breathing-bg {
+            background: linear-gradient(-45deg, #0f172a, #1e293b, #111827, #312e81);
+            background-size: 400% 400%;
+            animation: gradient 15s ease infinite;
+        }
+
+        @keyframes gradient {
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+        .music-bars {
+            display: flex;
+            align-items: flex-end;
+            height: 30px;
+            gap: 4px;
+        }
+
+        .bar {
+            width: 6px;
+            background-color: #2dd4bf;
+            animation: bounce 1s infinite ease-in-out;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            100% {
+                height: 10%;
+            }
+
+            50% {
+                height: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body class="breathing-bg text-white h-screen flex flex-col items-center justify-center overflow-hidden">
+
+    <!-- Top Bar -->
+    <div
+        class="absolute top-0 left-0 w-full p-6 flex justify-between items-center opacity-50 hover:opacity-100 transition-opacity">
+        <a href="/" class="text-sm hover:text-teal-400">← Exit Focus</a>
+        <button id="fullscreenBtn" class="text-sm hover:text-teal-400">⛶ Fullscreen</button>
+    </div>
+
+    <!-- Main Timer -->
+    <div class="text-center z-10">
+        <div class="mb-8">
+            <h2 class="text-xl text-teal-300 font-medium tracking-widest uppercase mb-4">Focusing on <span
+                    id="targetName" class="font-bold text-white">Task</span></h2>
+            <div id="timer" class="text-9xl font-mono font-bold tracking-tighter text-white drop-shadow-2xl">00:00</div>
+        </div>
+
+        <!-- Controls -->
+        <div class="flex flex-col items-center gap-6">
+            <div id="musicStatus" class="h-8 flex items-center justify-center gap-2 text-teal-200 text-sm">
+                <span>🎵 AI Music: </span>
+                <span id="musicStateText">Stopped</span>
+                <div id="visualizer" class="music-bars hidden">
+                    <div class="bar" style="animation-delay: 0s"></div>
+                    <div class="bar" style="animation-delay: 0.2s"></div>
+                    <div class="bar" style="animation-delay: 0.4s"></div>
+                    <div class="bar" style="animation-delay: 0.1s"></div>
+                </div>
+            </div>
+
+            <div class="flex gap-4">
+                <button id="toggleMusic"
+                    class="px-8 py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-full font-semibold transition backdrop-blur-sm">
+                    ▶ Play Music
+                </button>
+                <button id="openWork"
+                    class="px-8 py-3 bg-teal-500 hover:bg-teal-600 text-white rounded-full font-bold shadow-lg transition transform hover:scale-105">
+                    🔗 Open Site
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden audio initialization -->
+    <div id="initOverlay" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+        <div class="text-center">
+            <h1 class="text-2xl font-bold mb-4">Ready to Focus?</h1>
+            <p class="mb-6 text-gray-400">We need a click to start the audio engine.</p>
+            <button id="startBtn"
+                class="px-8 py-3 bg-teal-500 hover:bg-teal-600 text-white rounded-full font-bold">Start Session</button>
+        </div>
+    </div>
+
+    <script>
+        // --- PARAMS ---
+        const urlParams = new URLSearchParams(window.location.search);
+        let durationMin = parseInt(urlParams.get('duration')) || 25;
+        let targetUrl = urlParams.get('url') || 'google.com';
+        const mode = urlParams.get('mode') || 'solo';
+        const roomId = urlParams.get('room_id');
+
+        // Formatting URL
+        let safeUrl = targetUrl;
+        if (!safeUrl.startsWith('http')) safeUrl = 'https://' + safeUrl;
+
+        document.getElementById('targetName').innerText = new URL(safeUrl).hostname + (mode === 'group' ? ' (Group)' : '');
+
+        // --- SOCKET.IO (Group Mode) ---
+        let socket = null;
+        let isGroupLeader = false;
+
+        if (mode === 'group' && roomId) {
+            socket = io();
+            socket.emit('join_focus_room', { room_id: roomId });
+
+            socket.on('group_timer_start', (data) => {
+                durationMin = parseInt(data.duration);
+                targetUrl = data.target_url;
+                safeUrl = targetUrl.startsWith('http') ? targetUrl : 'https://' + targetUrl;
+                document.getElementById('targetName').innerText = new URL(safeUrl).hostname + ' (Synced)';
+
+                // Start Timer if not running
+                startTimerFromServer();
+            });
+
+            socket.on('focus_joined', (data) => {
+                console.log(data.message);
+            });
+        }
+
+        // --- TIMER ---
+        let timeLeft = durationMin * 60;
+        const timerEl = document.getElementById('timer');
+        let timerInterval = null;
+
+        function updateTimer() {
+            if (timeLeft < 0) timeLeft = 0;
+            const m = Math.floor(timeLeft / 60);
+            const s = timeLeft % 60;
+            timerEl.innerText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            if (timeLeft > 0) {
+                timeLeft--;
+            } else {
+                clearInterval(timerInterval);
+                timerInterval = null;
+                timerEl.classList.add('text-teal-400', 'animate-pulse');
+                document.title = "Focus Complete!";
+            }
+        }
+
+        function startTimer() {
+            if (timerInterval) return;
+
+            // If Group Mode, I am the STARTER (Leader)
+            if (mode === 'group' && socket) {
+                socket.emit('start_group_timer', {
+                    room_id: roomId,
+                    duration: durationMin,
+                    target_url: targetUrl
+                });
+            }
+
+            updateTimer();
+            timerInterval = setInterval(updateTimer, 1000);
+        }
+
+        function startTimerFromServer() {
+            // Reset time based on synced duration
+            timeLeft = durationMin * 60;
+            updateTimer();
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(updateTimer, 1000);
+
+            alert("Group Focus Started! Click OK to join.");
+            if (!isPlaying) document.getElementById('toggleMusic').click();
+            window.open(safeUrl, '_blank');
+        }
+
+        // --- AI MUSIC (Magenta.js) ---
+        let musicRnn;
+        let musicPlayer;
+        let isPlaying = false;
+
+        async function initMusic() {
+            console.log("Initializing Magenta...");
+            musicRnn = new mm.MusicRNN('https://storage.googleapis.com/magentadata/js/checkpoints/music_rnn/chord_pitches_improv');
+            await musicRnn.initialize();
+            musicPlayer = new mm.Player();
+            console.log("Magenta Initialized");
+        }
+
+        async function playFocusMusic() {
+            if (!musicRnn) await initMusic();
+
+            const rnn_steps = 400; const qpm = 70; const temperature = 1.1;
+            const seed = { notes: [{ pitch: 60, startTime: 0.0, endTime: 0.5 }], totalTime: 2.0 };
+            const qSeed = mm.sequences.quantizeNoteSequence(seed, 4);
+
+            document.getElementById('musicStateText').innerText = "Generating AI Music...";
+            const result = await musicRnn.continueSequence(qSeed, rnn_steps, temperature, ['C']);
+            result.tempos = [{ time: 0, qpm: qpm }];
+
+            document.getElementById('musicStateText').innerText = "Playing";
+            document.getElementById('visualizer').classList.remove('hidden');
+
+            musicPlayer.start(result).then(() => {
+                if (isPlaying) playFocusMusic();
+            });
+        }
+
+        // --- BUTTONS ---
+        document.getElementById('startBtn').addEventListener('click', () => {
+            document.getElementById('initOverlay').classList.add('hidden');
+            document.documentElement.requestFullscreen().catch((e) => { });
+            initMusic();
+            startTimer(); // Will emit if group mode
+            window.open(safeUrl, '_blank');
+        });
+
+        document.getElementById('toggleMusic').addEventListener('click', () => {
+            if (isPlaying) {
+                isPlaying = false;
+                if (musicPlayer) musicPlayer.stop();
+                document.getElementById('toggleMusic').innerText = "▶ Play Music";
+                document.getElementById('musicStateText').innerText = "Paused";
+                document.getElementById('visualizer').classList.add('hidden');
+            } else {
+                isPlaying = true;
+                document.getElementById('toggleMusic').innerText = "⏸ Pause Music";
+                playFocusMusic();
+            }
+        });
+
+        document.getElementById('fullscreenBtn').addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                if (document.exitFullscreen) document.exitFullscreen();
+            }
+        });
+
+        document.getElementById('openWork').addEventListener('click', () => {
+            window.open(safeUrl, '_blank');
+        });
+
+    </script>
+</body>
+
+</html>

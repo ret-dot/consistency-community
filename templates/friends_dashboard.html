@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-2xl mx-auto mt-10 bg-white dark:bg-darkCard p-6 rounded-lg shadow-lg">
+  <h2 class="text-xl font-bold mb-4 dark:text-white">Search for Friends</h2>
+  <form method="GET" action="{{ url_for('friends_dashboard') }}" class="flex mb-4">
+    <input type="text" name="search" placeholder="Search username..." value="{{ search_query }}"
+      class="border border-gray-300 dark:border-gray-600 rounded-l px-4 py-2 w-full focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500">
+    <button type="submit" class="bg-primary hover:bg-indigo-700 text-white px-4 rounded-r transition">Search</button>
+  </form>
+
+  {% if users %}
+  <h3 class="font-semibold mb-2 dark:text-gray-200">Users Found:</h3>
+  <ul class="divide-y divide-gray-200 dark:divide-gray-700">
+    {% for user in users %}
+    <li class="flex justify-between items-center py-2 dark:text-gray-300">
+      {{ user.username }}
+      <form method="POST" action="{{ url_for('send_friend_request', user_id=user.id) }}">
+        <button type="submit" class="text-sm text-white bg-accent hover:bg-green-600 px-3 py-1 rounded transition">Send
+          Request</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% elif search_query %}
+  <p class="dark:text-gray-400">No users found for "{{ search_query }}".</p>
+  {% endif %}
+
+  <h3 class="mt-8 font-semibold dark:text-gray-200">Your Friends</h3>
+  <ul class="mt-2 space-y-1">
+    {% for friend in friends %}
+    <li>
+      <a href="{{ url_for('private_chat', friend_id=friend.id) }}"
+        class="text-blue-600 dark:text-blue-400 hover:underline">{{ friend.username }}</a>
+    </li>
+    {% else %}
+    <li class="dark:text-gray-400">No friends yet (I have been there)..</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endblock %}

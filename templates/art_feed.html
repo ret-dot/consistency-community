@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-6 dark:text-gray-100">🎨 Friends' Art Feed</h1>
+
+    {% if not drawings %}
+    <p class="text-gray-500 dark:text-gray-400">No art posted yet. Be the first!</p>
+    {% else %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for drawing in drawings %}
+        <div class="bg-white dark:bg-darkCard rounded-xl shadow-lg overflow-hidden border dark:border-gray-700">
+            <div class="p-4 border-b dark:border-gray-700 flex justify-between items-center">
+                <span class="font-bold text-gray-800 dark:text-gray-200">{{ drawing.user.username }}</span>
+                <span class="text-xs text-gray-500">{{ drawing.created_at.strftime('%Y-%m-%d') }}</span>
+            </div>
+            <div class="p-4 bg-gray-50 dark:bg-gray-800 flex justify-center">
+                <img src="{{ drawing.image_data }}" class="max-w-full h-auto rounded shadow-sm bg-white">
+            </div>
+            <div class="p-4 flex justify-between text-sm text-gray-500 dark:text-gray-400">
+                <span>🖼️ Shared Art</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

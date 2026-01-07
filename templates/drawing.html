@@ -1,0 +1,292 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    canvas {
+        touch-action: none;
+        /* Prevent scrolling on touch devices */
+        cursor: crosshair;
+    }
+</style>
+
+<div class="container mx-auto px-4 py-8">
+    <div class="text-center mb-6">
+        <h1 class="text-4xl font-bold text-indigo-600 dark:text-indigo-400 mb-2">simple art </h1>
+        <p class="text-gray-600 dark:text-gray-300">click "Make it Perfect" to see something happen to your drawing
+        </p>
+    </div>
+
+    <!-- Toolbar -->
+    <div
+        class="flex flex-wrap justify-center gap-4 mb-4 bg-white dark:bg-darkCard p-4 rounded-xl shadow-lg border dark:border-gray-700">
+        <!-- Brush Color -->
+        <div class="flex items-center gap-2">
+            <label class="text-sm font-semibold dark:text-gray-300">Color:</label>
+            <input type="color" id="colorPicker" value="#000000" class="h-8 w-8 rounded cursor-pointer border-0">
+        </div>
+
+        <!-- Brush Size -->
+        <div class="flex items-center gap-2">
+            <label class="text-sm font-semibold dark:text-gray-300">Size:</label>
+            <input type="range" id="brushSize" min="1" max="20" value="5" class="w-24 accent-indigo-600">
+        </div>
+
+        <div class="h-8 w-px bg-gray-300 dark:bg-gray-600 mx-2"></div>
+
+        <!-- Tools -->
+        <button id="btnUndo"
+            class="px-4 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded text-gray-800 dark:text-gray-200 transition">
+            ↩ Undo
+        </button>
+        <button id="btnClear"
+            class="px-4 py-1.5 bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-800 text-red-600 dark:text-red-400 rounded transition">
+            Clear
+        </button>
+
+        <div class="h-8 w-px bg-gray-300 dark:bg-gray-600 mx-2"></div>
+
+        <!-- Magic Button -->
+        <button id="btnMagic"
+            class="px-6 py-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-bold rounded shadow-lg transform hover:scale-105 transition flex items-center gap-2">
+            Make it Perfect
+        </button>
+        <button id="btnSave" class="px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded transition">
+            Save
+        </button>
+    </div>
+
+    <!-- Canvas Container -->
+    <div class="relative bg-white dark:bg-white rounded-xl shadow-2xl overflow-hidden mx-auto"
+        style="max-width: 800px; height: 500px;">
+        <canvas id="drawingCanvas" class="w-full h-full"></canvas>
+        <div id="loadingOverlay" class="absolute inset-0 bg-black/50 flex items-center justify-center hidden">
+            <div class="text-white font-bold text-xl animate-pulse"> in progress...</div>
+        </div>
+    </div>
+
+    <div class="text-center mt-4 text-sm text-gray-400">
+        <p>Tip: Draw circles, rectangles, or lines and click "Make it Perfect".</p>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('drawingCanvas');
+    const ctx = canvas.getContext('2d');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+
+    // State
+    let isDrawing = false;
+    let strokes = []; // Array of strokes. Each stroke is an array of points {x, y}
+    let currentStroke = [];
+    let redoStack = [];
+
+    // Configuration
+    let currentColor = document.getElementById('colorPicker').value;
+    let currentSize = document.getElementById('brushSize').value;
+
+    function resizeCanvas() {
+        const parent = canvas.parentElement;
+        canvas.width = parent.clientWidth;
+        canvas.height = parent.clientHeight;
+        redraw(); // Redraw content on resize
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    // Initial Size
+    setTimeout(resizeCanvas, 100);
+
+    // Tools
+    document.getElementById('colorPicker').addEventListener('input', (e) => currentColor = e.target.value);
+    document.getElementById('brushSize').addEventListener('input', (e) => currentSize = e.target.value);
+
+    document.getElementById('btnClear').addEventListener('click', () => {
+        strokes = [];
+        redraw();
+    });
+
+    document.getElementById('btnUndo').addEventListener('click', () => {
+        if (strokes.length > 0) {
+            strokes.pop();
+            redraw();
+        }
+    });
+
+    document.getElementById('btnSave').addEventListener('click', () => {
+        const link = document.createElement('a');
+        link.download = 'my-drawing.png';
+        link.href = canvas.toDataURL();
+        link.click();
+    });
+
+    // Drawing Events
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('mouseout', stopDrawing);
+
+    // Touch Events
+    canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        startDrawing(e.touches[0]);
+    });
+    canvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        draw(e.touches[0]);
+    });
+    canvas.addEventListener('touchend', stopDrawing);
+
+    function getCoords(e) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        };
+    }
+
+    function startDrawing(e) {
+        isDrawing = true;
+        const coords = getCoords(e);
+        currentStroke = [];
+        // Add style info to the stroke
+        currentStroke.color = currentColor;
+        currentStroke.size = currentSize;
+        currentStroke.push(coords);
+
+        ctx.beginPath();
+        ctx.moveTo(coords.x, coords.y);
+        ctx.strokeStyle = currentColor;
+        ctx.lineWidth = currentSize;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+    }
+
+    function draw(e) {
+        if (!isDrawing) return;
+        const coords = getCoords(e);
+        currentStroke.push(coords);
+
+        ctx.lineTo(coords.x, coords.y);
+        ctx.stroke();
+    }
+
+    function stopDrawing() {
+        if (!isDrawing) return;
+        isDrawing = false;
+        if (currentStroke.length > 0) {
+            strokes.push(currentStroke);
+        }
+        ctx.closePath();
+    }
+
+    function redraw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // Fill white background for saving
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        strokes.forEach(stroke => {
+            if (stroke.length < 2) return;
+
+            ctx.beginPath();
+            ctx.moveTo(stroke[0].x, stroke[0].y);
+            ctx.strokeStyle = stroke.color || '#000';
+            ctx.lineWidth = stroke.size || 5;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            for (let i = 1; i < stroke.length; i++) {
+                ctx.lineTo(stroke[i].x, stroke[i].y);
+            }
+            ctx.stroke();
+            ctx.closePath();
+        });
+    }
+
+    // --- MAGIC SHAPE LOGIC ---
+    document.getElementById('btnMagic').addEventListener('click', applyMagic);
+
+    function applyMagic() {
+        if (strokes.length === 0) return;
+
+        loadingOverlay.classList.remove('hidden');
+
+        setTimeout(() => {
+            const newStrokes = strokes.map(stroke => processStroke(stroke));
+            strokes = newStrokes;
+            redraw();
+            loadingOverlay.classList.add('hidden');
+        }, 500); // Fake delay for "AI" feel
+    }
+
+    function processStroke(stroke) {
+        if (stroke.length < 5) return stroke; // Too short to process
+
+        const start = stroke[0];
+        const end = stroke[stroke.length - 1];
+
+        // 1. Calculate bounding box
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        stroke.forEach(p => {
+            minX = Math.min(minX, p.x);
+            maxX = Math.max(maxX, p.x);
+            minY = Math.min(minY, p.y);
+            maxY = Math.max(maxY, p.y);
+        });
+        const width = maxX - minX;
+        const height = maxY - minY;
+
+        // 2. Distance between start and end
+        const dist = Math.hypot(end.x - start.x, end.y - start.y);
+
+        // 3. Total path length
+        let len = 0;
+        for (let i = 1; i < stroke.length; i++) {
+            len += Math.hypot(stroke[i].x - stroke[i - 1].x, stroke[i].y - stroke[i - 1].y);
+        }
+
+        // --- HEURISTICS ---
+
+        // A. CIRCLE Check: Start/End close, width approx equal height
+        if (dist < 40 && Math.abs(width - height) < (width * 0.4)) {
+            // It's likely a circle/ellipse
+            return createCircleStroke(minX + width / 2, minY + height / 2, width / 2, height / 2, stroke.color, stroke.size);
+        }
+
+        // B. LINE Check: Path length close to distance (straight line)
+        // If path length is within 1.2x of straight distance
+        if (len < dist * 1.25) {
+            return createLineStroke(start, end, stroke.color, stroke.size);
+        }
+
+        // C. RECTANGLE Check: (Simplified)
+        // If bounding box area is close to path bounding box? Hard with one stroke.
+        // For now, let's just stick to Line and Circle as they cover 80% of bad sketches.
+
+        // Return original if no match
+        return stroke;
+    }
+
+    function createLineStroke(p1, p2, color, size) {
+        const points = [p1, p2];
+        points.color = color;
+        points.size = size;
+        return points;
+    }
+
+    function createCircleStroke(cx, cy, rx, ry, color, size) {
+        const points = [];
+        const steps = 40;
+        for (let i = 0; i <= steps; i++) {
+            const theta = (i / steps) * 2 * Math.PI;
+            points.push({
+                x: cx + rx * Math.cos(theta),
+                y: cy + ry * Math.sin(theta)
+            });
+        }
+        points.color = color;
+        points.size = size;
+        return points;
+    }
+
+</script>
+{% endblock %}

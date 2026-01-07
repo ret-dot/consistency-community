@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Login</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: '#4f46e5',
+            accent: '#10b981',
+            darkBot: '#1f2937',
+            darkPage: '#111827',
+            darkCard: '#1f2937',
+            darkText: '#f3f4f6',
+          }
+        }
+      }
+    }
+    // Theme initialization
+    if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+  </script>
+</head>
+
+<body
+  class="bg-gradient-to-r from-indigo-200 via-purple-200 to-pink-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 min-h-screen flex items-center justify-center transition-colors duration-200">
+
+  <div class="bg-white dark:bg-darkCard shadow-md rounded-xl p-8 w-full max-w-sm">
+    <h2 class="text-2xl font-bold mb-6 text-center text-indigo-700 dark:text-indigo-400">Welcome Back </h2>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div
+      class="mb-4 text-sm text-{{ 'red' if category == 'error' else 'green' }}-600 dark:text-{{ 'red' if category == 'error' else 'green' }}-400">
+      {{ message }}</div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('login') }}" class="space-y-4">
+      <div>
+        <label for="username" class="block text-gray-700 dark:text-gray-300 font-medium">Username</label>
+        <input type="text" name="username" id="username" required
+          class="mt-1 w-full px-4 py-2 border dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
+      </div>
+
+      <div>
+        <label for="password" class="block text-gray-700 dark:text-gray-300 font-medium">Password</label>
+        <input type="password" name="password" id="password" required
+          class="mt-1 w-full px-4 py-2 border dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500" />
+      </div>
+
+      <button type="submit"
+        class="w-full bg-indigo-600 text-white py-2 rounded-md font-semibold hover:bg-indigo-700 transition">
+        Login
+      </button>
+    </form>
+
+    <p class="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
+      Don't have an account?
+      <a href="{{ url_for('register') }}" class="text-indigo-600 dark:text-indigo-400 hover:underline">Register</a>
+    </p>
+  </div>
+
+</body>
+
+</html>

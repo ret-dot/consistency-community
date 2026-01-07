@@ -1,0 +1,733 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .calendar {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 5px;
+        max-width: 600px;
+        margin: 1rem auto;
+    }
+
+    /* Stage Container */
+    .stage-container {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+
+    @media (min-width: 1024px) {
+        .stage-container {
+            grid-template-columns: 2fr 1fr;
+        }
+    }
+
+    /* Video Grid */
+    .video-grid {
+        display: grid;
+        gap: 0.5rem;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    }
+
+    .video-tile {
+        position: relative;
+        background: #1a1a2e;
+        border-radius: 12px;
+        overflow: hidden;
+        aspect-ratio: 16/9;
+    }
+
+    .video-tile video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .video-tile .username-label {
+        position: absolute;
+        bottom: 8px;
+        left: 8px;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        color: white;
+    }
+
+    /* Control Bar */
+    .control-bar {
+        display: flex;
+        justify-content: center;
+        gap: 1rem;
+        padding: 1rem;
+        background: linear-gradient(135deg, #1e1e2f 0%, #2d2d44 100%);
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .control-btn {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem;
+        transition: all 0.2s ease;
+    }
+
+    .control-btn:hover {
+        transform: scale(1.1);
+    }
+
+    .control-btn.active {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .control-btn.inactive {
+        background: #3a3a52;
+        color: #888;
+    }
+
+    .control-btn.danger {
+        background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
+        color: white;
+    }
+
+    /* YouTube Theater */
+    .youtube-theater {
+        background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+        border-radius: 16px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .youtube-theater iframe {
+        border-radius: 12px;
+        width: 100%;
+        aspect-ratio: 16/9;
+    }
+
+    /* Tabs */
+    .tab-btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        background: transparent;
+        color: #888;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+        color: #667eea;
+        border-bottom-color: #667eea;
+    }
+
+    .tab-content {
+        display: none;
+    }
+
+    .tab-content.active {
+        display: block;
+    }
+</style>
+
+<div class="container mx-auto px-4 py-6">
+    <!-- Header -->
+    <div class="text-center mb-6">
+        <h1 class="text-3xl font-bold dark:text-gray-100">{{ room.name }}</h1>
+        <p class="text-gray-500 dark:text-gray-400">Room #{{ room_id }}</p>
+    </div>
+
+    <!-- Tabs Navigation -->
+    <div class="flex justify-center border-b border-gray-700 mb-6">
+        <button class="tab-btn active" data-tab="stage">🎬 Stage</button>
+        <button class="tab-btn" data-tab="calendar">📅 Calendar</button>
+        <button class="tab-btn" data-tab="rewards">🏆 Rewards</button>
+    </div>
+
+    <!-- Stage Tab -->
+    <div id="tab-stage" class="tab-content active">
+        <div class="stage-container">
+            <!-- Main Stage Area -->
+            <div>
+                <!-- YouTube Theater -->
+                <div class="youtube-theater">
+                    <div class="flex items-center gap-2 mb-3">
+                        <input type="text" id="youtube-url" placeholder="Paste YouTube URL..."
+                            class="flex-grow px-4 py-2 rounded-lg bg-gray-800 text-white border border-gray-600 focus:outline-none focus:border-purple-500">
+                        <button id="load-video-btn"
+                            class="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90 transition">
+                            ▶ Load
+                        </button>
+                    </div>
+                    <div id="youtube-player-container">
+                        <div id="youtube-player"></div>
+                    </div>
+                </div>
+
+                <!-- Voice/Video Channel -->
+                <div class="bg-gray-900 rounded-xl p-4 mb-4">
+                    <h3 class="text-lg font-semibold text-white mb-3">🎙️ Voice Channel</h3>
+                    <div id="video-grid" class="video-grid mb-4">
+                        <!-- Local video tile -->
+                        <div id="local-tile" class="video-tile hidden">
+                            <video id="local-video" autoplay muted playsinline></video>
+                            <div class="username-label">You</div>
+                        </div>
+                        <!-- Remote tiles will be added dynamically -->
+                    </div>
+
+                    <!-- Control Bar -->
+                    <div class="control-bar">
+                        <button id="btn-join-voice" class="control-btn active" title="Join Voice">
+                            📞
+                        </button>
+                        <button id="btn-mic" class="control-btn inactive" title="Toggle Mic" disabled>
+                            🎤
+                        </button>
+                        <button id="btn-camera" class="control-btn inactive" title="Toggle Camera" disabled>
+                            📷
+                        </button>
+                        <button id="btn-screen" class="control-btn inactive" title="Share Screen" disabled>
+                            🖥️
+                        </button>
+                        <button id="btn-leave" class="control-btn danger hidden" title="Leave Voice">
+                            ❌
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar: Chat -->
+            <div class="bg-gray-800 rounded-xl p-4 flex flex-col" style="max-height: 600px;">
+                <h3 class="text-lg font-semibold text-white mb-3">💬 Room Chat</h3>
+                <div id="chat-box" class="flex-grow overflow-y-auto space-y-2 mb-3 pr-2" style="max-height: 450px;">
+                    {% for message in messages %}
+                    <div class="dark:text-gray-300">
+                        <b class="text-purple-400">{{ message.user.username }}</b>:
+                        {% if message.drawing_url %}
+                        <br><img src="{{ message.drawing_url }}" class="w-48 border rounded mt-1 bg-white">
+                        {% else %}
+                        <span class="text-gray-300">{{ message.content }}</span>
+                        {% endif %}
+                        <span class="text-xs text-gray-500 ml-2">{{ message.timestamp.strftime('%H:%M') }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                <form id="chat-form" class="flex gap-2">
+                    <input id="chat-input" type="text" placeholder="Type a message..." required
+                        class="flex-grow px-3 py-2 rounded-lg bg-gray-700 text-white border border-gray-600 focus:outline-none focus:border-purple-500">
+                    <button type="submit"
+                        class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition">Send</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Calendar Tab -->
+    <div id="tab-calendar" class="tab-content">
+        <div class="bg-gray-800 rounded-xl p-6">
+            <div class="flex justify-center items-center gap-4 mb-4">
+                <button id="prevMonth" class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-gray-200">−</button>
+                <span id="monthLabel" class="text-lg font-semibold text-gray-200"></span>
+                <button id="nextMonth" class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-gray-200">+</button>
+            </div>
+            <div class="calendar" id="calendar"></div>
+            <div class="text-center mt-6 text-gray-300">
+                <p>Total completed days: <strong id="count" class="text-purple-400">0</strong></p>
+                <p>Current streak: <strong id="streak" class="text-purple-400">0</strong></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rewards Tab -->
+    <div id="tab-rewards" class="tab-content">
+        <div class="bg-gray-800 rounded-xl p-6 mb-6">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-100">➕ Add a Reward</h2>
+            <form action="{{ url_for('add_reward', room_id=room_id) }}" method="POST" class="space-y-4">
+                <input name="title" type="text" placeholder="Reward Title" required
+                    class="w-full px-4 py-2 rounded-lg bg-gray-700 text-white border border-gray-600 focus:outline-none focus:border-purple-500">
+                <textarea name="description" placeholder="Reward Description (optional)"
+                    class="w-full px-4 py-2 rounded-lg bg-gray-700 text-white border border-gray-600 focus:outline-none focus:border-purple-500"></textarea>
+                <input name="required_days" type="number" placeholder="Required Days" min="1" required
+                    class="w-full px-4 py-2 rounded-lg bg-gray-700 text-white border border-gray-600 focus:outline-none focus:border-purple-500">
+                <button type="submit"
+                    class="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-2 rounded-lg hover:opacity-90 transition">
+                    Add Reward
+                </button>
+            </form>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {% for reward in rewards %}
+            <div class="bg-gray-700 rounded-lg p-4 border border-gray-600">
+                <h3 class="text-xl font-semibold text-purple-400">🎁 {{ reward.title }}</h3>
+                <p class="text-sm text-gray-300">{{ reward.description }}</p>
+                <p class="text-xs mt-2 text-gray-400">Requires: {{ reward.required_days }} days</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script src="https://unpkg.com/simple-peer@9/simplepeer.min.js"></script>
+<script>
+    // === Tab Navigation ===
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+        });
+    });
+
+    // === Socket.io Setup ===
+    var socket = io();
+    var room_id = Number("{{ room.id }}");
+    var currentUserId = Number("{{ current_user.id }}");
+    var currentUsername = "{{ current_user.username }}";
+
+    socket.emit('join_room_chat', { room_id: room_id });
+
+    // === Chat ===
+    document.getElementById('chat-form').onsubmit = function (e) {
+        e.preventDefault();
+        var msg = document.getElementById('chat-input').value;
+        if (msg.trim() === "") return;
+        socket.emit('send_room_message', { room_id: room_id, message: msg });
+        document.getElementById('chat-input').value = '';
+    };
+
+    socket.on('receive_room_message', function (data) {
+        var chatBox = document.getElementById('chat-box');
+        var msgDiv = document.createElement('div');
+        msgDiv.className = "dark:text-gray-300";
+
+        if (data.is_private) {
+            msgDiv.className = "italic opacity-80 border-l-2 border-purple-500 pl-2 my-1 text-gray-300";
+            if (data.is_ai) {
+                msgDiv.className = "text-purple-400 font-semibold border-l-2 border-purple-500 pl-2 my-1";
+            }
+        }
+
+        let content = data.message;
+        if (data.drawing_url) {
+            content += `<br><img src="${data.drawing_url}" class="w-48 border rounded mt-1 bg-white">`;
+        }
+
+        msgDiv.innerHTML = `<b class="text-purple-400">${data.username}</b>: <span class="text-gray-300">${content}</span> <span class="text-xs text-gray-500 ml-2">${data.timestamp}</span>`;
+        chatBox.appendChild(msgDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    });
+
+    // === YouTube Watch Together ===
+    var player;
+    var isRemoteAction = false;
+
+    function onYouTubeIframeAPIReady() {
+        player = new YT.Player('youtube-player', {
+            height: '100%',
+            width: '100%',
+            videoId: '',
+            playerVars: { 'playsinline': 1, 'rel': 0 },
+            events: {
+                'onStateChange': onPlayerStateChange
+            }
+        });
+    }
+
+    function onPlayerStateChange(event) {
+        if (isRemoteAction) {
+            isRemoteAction = false;
+            return;
+        }
+
+        if (event.data == YT.PlayerState.PLAYING) {
+            socket.emit('sync_video', { room_id: room_id, action: 'play', current_time: player.getCurrentTime() });
+        } else if (event.data == YT.PlayerState.PAUSED) {
+            socket.emit('sync_video', { room_id: room_id, action: 'pause', current_time: player.getCurrentTime() });
+        }
+    }
+
+    document.getElementById('load-video-btn').onclick = function () {
+        var url = document.getElementById('youtube-url').value;
+        var videoId = extractVideoId(url);
+        if (videoId) {
+            player.loadVideoById(videoId);
+            socket.emit('change_video', { room_id: room_id, video_id: videoId });
+        }
+    };
+
+    function extractVideoId(url) {
+        var match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/))([^?&]+)/);
+        return match ? match[1] : null;
+    }
+
+    socket.on('video_changed', function (data) {
+        isRemoteAction = true;
+        player.loadVideoById(data.video_id);
+    });
+
+    socket.on('video_sync', function (data) {
+        isRemoteAction = true;
+        if (data.action === 'play') {
+            player.seekTo(data.current_time, true);
+            player.playVideo();
+        } else if (data.action === 'pause') {
+            player.seekTo(data.current_time, true);
+            player.pauseVideo();
+        }
+    });
+
+    // Load YouTube IFrame API
+    var tag = document.createElement('script');
+    tag.src = "https://www.youtube.com/iframe_api";
+    var firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+
+    // === WebRTC Voice/Video ===
+    var localStream = null;
+    var screenStream = null;
+    var peers = {};
+    var isInVoice = false;
+    var isMuted = false;
+    var isCameraOn = false;
+
+    const btnJoin = document.getElementById('btn-join-voice');
+    const btnMic = document.getElementById('btn-mic');
+    const btnCamera = document.getElementById('btn-camera');
+    const btnScreen = document.getElementById('btn-screen');
+    const btnLeave = document.getElementById('btn-leave');
+    const localTile = document.getElementById('local-tile');
+    const localVideo = document.getElementById('local-video');
+    const videoGrid = document.getElementById('video-grid');
+
+    btnJoin.onclick = async function () {
+        if (isInVoice) return;
+
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+            localVideo.srcObject = localStream;
+            localTile.classList.remove('hidden');
+
+            isInVoice = true;
+            isCameraOn = true;
+
+            btnJoin.classList.add('hidden');
+            btnLeave.classList.remove('hidden');
+            btnMic.disabled = false;
+            btnCamera.disabled = false;
+            btnScreen.disabled = false;
+            btnMic.classList.replace('inactive', 'active');
+            btnCamera.classList.replace('inactive', 'active');
+
+            socket.emit('join_voice', { room_id: room_id });
+        } catch (err) {
+            console.error('Failed to get media:', err);
+            alert('Could not access camera/microphone. Please check permissions.');
+        }
+    };
+
+    btnLeave.onclick = function () {
+        leaveVoice();
+    };
+
+    function leaveVoice() {
+        if (localStream) {
+            localStream.getTracks().forEach(t => t.stop());
+            localStream = null;
+        }
+        if (screenStream) {
+            screenStream.getTracks().forEach(t => t.stop());
+            screenStream = null;
+        }
+
+        Object.values(peers).forEach(p => p.destroy());
+        peers = {};
+
+        // Remove remote tiles
+        document.querySelectorAll('.remote-tile').forEach(el => el.remove());
+
+        localTile.classList.add('hidden');
+        isInVoice = false;
+        isCameraOn = false;
+        isMuted = false;
+
+        btnJoin.classList.remove('hidden');
+        btnLeave.classList.add('hidden');
+        btnMic.disabled = true;
+        btnCamera.disabled = true;
+        btnScreen.disabled = true;
+        btnMic.classList.replace('active', 'inactive');
+        btnCamera.classList.replace('active', 'inactive');
+        btnScreen.classList.replace('active', 'inactive');
+
+        socket.emit('leave_voice', { room_id: room_id });
+    }
+
+    btnMic.onclick = function () {
+        if (!localStream) return;
+        isMuted = !isMuted;
+        localStream.getAudioTracks().forEach(t => t.enabled = !isMuted);
+        btnMic.classList.toggle('active', !isMuted);
+        btnMic.classList.toggle('inactive', isMuted);
+        btnMic.textContent = isMuted ? '🔇' : '🎤';
+    };
+
+    btnCamera.onclick = function () {
+        if (!localStream) return;
+        isCameraOn = !isCameraOn;
+        localStream.getVideoTracks().forEach(t => t.enabled = isCameraOn);
+        btnCamera.classList.toggle('active', isCameraOn);
+        btnCamera.classList.toggle('inactive', !isCameraOn);
+        btnCamera.textContent = isCameraOn ? '📷' : '📷';
+    };
+
+    btnScreen.onclick = async function () {
+        if (!isInVoice) return;
+
+        if (screenStream) {
+            // Stop screen share
+            screenStream.getTracks().forEach(t => t.stop());
+            screenStream = null;
+
+            // Restore camera
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+            localVideo.srcObject = localStream;
+
+            Object.values(peers).forEach(p => {
+                p.replaceTrack(p.streams[0].getVideoTracks()[0], localStream.getVideoTracks()[0], localStream);
+            });
+
+            btnScreen.classList.replace('active', 'inactive');
+        } else {
+            try {
+                screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                localVideo.srcObject = screenStream;
+
+                Object.values(peers).forEach(p => {
+                    if (localStream) {
+                        p.replaceTrack(localStream.getVideoTracks()[0], screenStream.getVideoTracks()[0], screenStream);
+                    }
+                });
+
+                screenStream.getVideoTracks()[0].onended = () => {
+                    btnScreen.click(); // Toggle back
+                };
+
+                btnScreen.classList.replace('inactive', 'active');
+            } catch (err) {
+                console.error('Screen share failed:', err);
+            }
+        }
+    };
+
+    // WebRTC Signaling
+    socket.on('user_joined_voice', function (data) {
+        if (data.user_id === currentUserId) return;
+        if (!isInVoice) return;
+
+        // Create peer connection to new user (initiator)
+        createPeer(data.user_id, data.username, true);
+    });
+
+    socket.on('voice_signal', function (data) {
+        if (!isInVoice) return;
+
+        if (!peers[data.from_user_id]) {
+            // Create non-initiator peer
+            createPeer(data.from_user_id, data.from_username, false);
+        }
+
+        peers[data.from_user_id].signal(data.signal);
+    });
+
+    socket.on('user_left_voice', function (data) {
+        if (peers[data.user_id]) {
+            peers[data.user_id].destroy();
+            delete peers[data.user_id];
+        }
+
+        const tile = document.getElementById('tile-' + data.user_id);
+        if (tile) tile.remove();
+    });
+
+    function createPeer(userId, username, initiator) {
+        const streamToSend = screenStream || localStream;
+
+        const peer = new SimplePeer({
+            initiator: initiator,
+            trickle: true,
+            stream: streamToSend
+        });
+
+        peer.on('signal', data => {
+            socket.emit('voice_signal', {
+                room_id: room_id,
+                target_user_id: userId,
+                signal: data
+            });
+        });
+
+        peer.on('stream', stream => {
+            addRemoteVideo(userId, username, stream);
+        });
+
+        peer.on('close', () => {
+            const tile = document.getElementById('tile-' + userId);
+            if (tile) tile.remove();
+            delete peers[userId];
+        });
+
+        peer.on('error', err => {
+            console.error('Peer error:', err);
+        });
+
+        peers[userId] = peer;
+    }
+
+    function addRemoteVideo(userId, username, stream) {
+        let tile = document.getElementById('tile-' + userId);
+        if (!tile) {
+            tile = document.createElement('div');
+            tile.id = 'tile-' + userId;
+            tile.className = 'video-tile remote-tile';
+            tile.innerHTML = `
+                <video autoplay playsinline></video>
+                <div class="username-label">${username}</div>
+            `;
+            videoGrid.appendChild(tile);
+        }
+        tile.querySelector('video').srcObject = stream;
+    }
+
+
+    // === Calendar Logic ===
+    document.addEventListener("DOMContentLoaded", () => {
+        const today = new Date("{{ today.strftime('%Y-%m-%d') }}");
+        let currentMonth = today.getMonth();
+        let currentYear = today.getFullYear();
+        const completed = new Set(JSON.parse('{{ completed_days | tojson }}'));
+        const calendarEl = document.getElementById("calendar");
+        const monthLabel = document.getElementById("monthLabel");
+
+        function updateMonthLabel() {
+            const monthNames = [
+                "January", "February", "March", "April", "May", "June",
+                "July", "August", "September", "October", "November", "December"
+            ];
+            monthLabel.textContent = `${monthNames[currentMonth]} ${currentYear}`;
+        }
+
+        function generateCalendar(year, month) {
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const totalDays = lastDay.getDate();
+            const startDay = firstDay.getDay();
+
+            calendarEl.innerHTML = "";
+
+            for (let i = 0; i < startDay; i++) {
+                const empty = document.createElement("div");
+                calendarEl.appendChild(empty);
+            }
+
+            for (let d = 1; d <= totalDays; d++) {
+                const day = new Date(year, month, d);
+                const iso = day.toISOString().split('T')[0];
+
+                const div = document.createElement("div");
+                div.className = "text-center p-2 rounded cursor-pointer transition border border-gray-600";
+                div.innerText = d;
+
+                if (completed.has(iso)) {
+                    div.classList.add("bg-green-600", "text-white", "hover:bg-green-500");
+                } else {
+                    div.classList.add("bg-gray-700", "text-gray-300", "hover:bg-gray-600");
+                }
+
+                div.onclick = () => {
+                    fetch("/toggle_day", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ day: iso, room_id: room_id })
+                    })
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.status === "added") {
+                                div.classList.remove("bg-gray-700", "text-gray-300", "hover:bg-gray-600");
+                                div.classList.add("bg-green-600", "text-white", "hover:bg-green-500");
+                                completed.add(iso);
+                            } else {
+                                div.classList.remove("bg-green-600", "text-white", "hover:bg-green-500");
+                                div.classList.add("bg-gray-700", "text-gray-300", "hover:bg-gray-600");
+                                completed.delete(iso);
+                            }
+                            updateStats();
+                        });
+                };
+
+                calendarEl.appendChild(div);
+            }
+            updateStats();
+            updateMonthLabel();
+        }
+
+        function updateStats() {
+            const completedArray = [...completed].sort();
+            let streak = 0;
+            let maxStreak = 0;
+            let prev = null;
+
+            for (let iso of completedArray) {
+                const dateObj = new Date(iso);
+                if (prev) {
+                    const diff = (dateObj - prev) / (1000 * 60 * 60 * 24);
+                    if (diff === 1) {
+                        streak++;
+                    } else {
+                        streak = 1;
+                    }
+                } else {
+                    streak = 1;
+                }
+                maxStreak = Math.max(maxStreak, streak);
+                prev = dateObj;
+            }
+
+            document.getElementById("count").innerText = completed.size;
+            document.getElementById("streak").innerText = maxStreak;
+        }
+
+        document.getElementById("prevMonth").onclick = () => {
+            currentMonth--;
+            if (currentMonth < 0) {
+                currentMonth = 11;
+                currentYear--;
+            }
+            generateCalendar(currentYear, currentMonth);
+        };
+
+        document.getElementById("nextMonth").onclick = () => {
+            currentMonth++;
+            if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+            }
+            generateCalendar(currentYear, currentMonth);
+        };
+
+        generateCalendar(currentYear, currentMonth);
+    });
+</script>
+{% endblock %}

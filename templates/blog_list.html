@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mx-auto px-4 mt-8 max-w-3xl">
+  <div class="flex justify-between items-center mb-6">
+    <h2 class="text-3xl font-bold dark:text-gray-100">Daily Diary</h2>
+    <a href="{{ url_for('blog_create') }}"
+      class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition shadow">New Post</a>
+  </div>
+
+  <ul class="space-y-4">
+    {% for post in posts %}
+    <li
+      class="bg-white dark:bg-darkCard rounded-xl shadow p-6 transition hover:shadow-lg dark:border dark:border-gray-700">
+      <a href="{{ url_for('blog_detail', post_id=post.id) }}"
+        class="text-xl font-semibold text-indigo-600 dark:text-indigo-400 hover:underline block mb-2">{{ post.title
+        }}</a>
+      <div class="text-sm text-gray-500 dark:text-gray-400">
+        by <span class="font-medium text-gray-700 dark:text-gray-300">{{ post.author.username }}</span>
+        on {{ post.timestamp.strftime('%Y-%m-%d %H:%M') }}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endblock %}

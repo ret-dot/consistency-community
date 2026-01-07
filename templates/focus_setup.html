@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-16 flex justify-center">
+    <div class="bg-white dark:bg-darkCard rounded-2xl shadow-2xl p-8 max-w-md w-full border dark:border-gray-700">
+        <div class="text-center mb-8">
+            <h1
+                class="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-teal-400 to-blue-500 mb-2">
+                🧘 Focus Mode</h1>
+            <p class="text-gray-600 dark:text-gray-300">Block distractions. Tune in. Get it done.</p>
+        </div>
+
+        <form action="{{ url_for('focus_session') }}" method="GET" class="space-y-6">
+            <!-- Mode Selection -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Focus Mode</label>
+                <div class="flex gap-4">
+                    <label class="flex-1 cursor-pointer">
+                        <input type="radio" name="mode" value="solo" checked class="peer hidden"
+                            onchange="toggleRoomSelect(false)">
+                        <div
+                            class="p-3 bg-gray-50 dark:bg-gray-800 border dark:border-gray-600 rounded-lg text-center peer-checked:bg-teal-500 peer-checked:text-white transition">
+                            👤 Solo
+                        </div>
+                    </label>
+                    <label class="flex-1 cursor-pointer">
+                        <input type="radio" name="mode" value="group" class="peer hidden"
+                            onchange="toggleRoomSelect(true)">
+                        <div
+                            class="p-3 bg-gray-50 dark:bg-gray-800 border dark:border-gray-600 rounded-lg text-center peer-checked:bg-indigo-500 peer-checked:text-white transition">
+                            👥 Group
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div id="roomSelectDiv" class="hidden">
+                <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Select Room</label>
+                <select name="room_id"
+                    class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:text-white">
+                    {% for room in rooms %}
+                    <option value="{{ room.id }}">{{ room.name }}</option>
+                    {% endfor %}
+                </select>
+                <p class="text-xs text-gray-400 mt-1">Everyone in this room will sync with your timer.</p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Target Website</label>
+                <div class="relative">
+                    <span
+                        class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">🌐</span>
+                    <input type="text" name="url" placeholder="e.g., docs.google.com" required
+                        class="pl-10 w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-teal-500 dark:text-white placeholder-gray-400">
+                </div>
+                <p class="text-xs text-gray-400 mt-1">This site will open when you start.</p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Duration
+                    (Minutes)</label>
+                <input type="number" name="duration" min="1" max="180" value="25" required
+                    class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-teal-500 dark:text-white font-mono text-lg text-center">
+            </div>
+
+            <button type="submit"
+                class="w-full py-4 bg-gradient-to-r from-teal-500 to-blue-600 hover:from-teal-600 hover:to-blue-700 text-white font-bold rounded-xl shadow-lg transform hover:scale-[1.02] transition-all duration-200">
+                Start Focus Session 🚀
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+    function toggleRoomSelect(show) {
+        document.getElementById('roomSelectDiv').style.display = show ? 'block' : 'none';
+        const btn = document.querySelector('button[type="submit"]');
+        if (show) {
+            btn.classList.remove('from-teal-500', 'to-blue-600');
+            btn.classList.add('from-indigo-500', 'to-purple-600');
+        } else {
+            btn.classList.add('from-teal-500', 'to-blue-600');
+            btn.classList.remove('from-indigo-500', 'to-purple-600');
+        }
+    }
+</script>
+{% endblock %}
