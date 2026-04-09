@@ -24,8 +24,8 @@ instance/
 # Environment variables
 .env
 
-# Model files (large)
-Qwen3-0.6B/
+# Model files are tracked with Git LFS
+# Qwen3-0.6B/ - now tracked with LFS
 
 # OS
 .DS_Store

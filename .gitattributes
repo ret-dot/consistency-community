@@ -1,0 +1,2 @@
+Qwen3-0.6B/*.safetensors filter=lfs diff=lfs merge=lfs -text
+Qwen3-0.6B/*.bin filter=lfs diff=lfs merge=lfs -text
